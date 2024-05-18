@@ -4,7 +4,7 @@ create table users (
     user_id VARCHAR(100) PRIMARY KEY,
     username VARCHAR (50) UNIQUE NOT NULL,
     email VARCHAR (355) UNIQUE NOT NULL,
-    best_score INT
+    best_score Serial
 );
 
 
@@ -19,3 +19,4 @@ INSERT INTO users (user_id, username, email, best_score) VALUES ('1','narayan', 
 -- this for seeding user but i need to hash the password
 -- INSERT INTO users (user_id, username, email, password, )
 -- VALUES (1, 'John', 'Doe');
+

@@ -41,9 +41,10 @@ type Response struct {
 }
 
 type Users struct {
-	Id        int
-	BestScore int
-	Email     string
+	Id        string    `json:"user_id" gorm:"column:user_id;primary_key"`
+	BestScore int       `json:"best_score" gorm:"column:best_score"`
+	Username  string    `json:"username" gorm:"column:username;unique;not null"`
+	Email     string    `json:"email" gorm:"column:email;unique;not null"`
 }
 
 func isAllowedEmail(email string) bool {
@@ -144,7 +145,15 @@ func uploadFileHandler(c *gin.Context) {
 		{3, 0, 0, 1, 2, "1"},
 		{3, 0, 0, 1, 1, "None"},
 	}
-
+	db, err := initDS()
+	
+	// Find user by email
+        var user Users
+        if err := db.DB.Where("email = ?", email).First(&user).Error; err != nil {
+                log.Printf("Failed to find user by email: %v", err)
+                c.JSON(http.StatusInternalServerError, Response{Error: "Failed to find user by email"})
+                return
+        }
 	// knight_attack(8, 1, 1, 2, 2) == 2
 	// knight_attack(8, 1, 1, 2, 3) == 1
 	// knight_attack(8, 0, 3, 4, 2) == 3
@@ -164,12 +173,22 @@ func uploadFileHandler(c *gin.Context) {
 		// check how long it take if it takes longer then 2 seconds then it failed
 		if execTime.Seconds() > 2 {
 			c.JSON(http.StatusRequestTimeout, Response{Error: "Execution time exceeded 2 seconds"})
+			if err := db.DB.Model(&user).Update("best_score", 0).Error; err != nil {
+                        	log.Printf("Failed to update user's best score: %v", err)
+                        	c.JSON(http.StatusInternalServerError, Response{Error: "Failed to update user's best score"})
+                        	return
+                	}
 			return
 		}
 
 		if len(stderr) > 0 {
 			log.Println("Went int stderr is long")
 			c.JSON(http.StatusInternalServerError, Response{Error: "Failed to compile the script"})
+			if err := db.DB.Model(&user).Update("best_score", 0).Error; err != nil {
+                        	log.Printf("Failed to update user's best score: %v", err)
+                        	c.JSON(http.StatusInternalServerError, Response{Error: "Failed to update user's best score"})
+                        	return
+                	}
 			return
 		}
 
@@ -192,9 +211,9 @@ func uploadFileHandler(c *gin.Context) {
 		})
 	}
 
-	score := (passedTests / len(testCases)) * 100
+	score := int( float64(passedTests) / float64( len(testCases) )  * 100)
 
-	db, err := initDS()
+
 	if err != nil {
 		log.Printf("Failed to connect to database: %v", err)
 		c.JSON(http.StatusInternalServerError, Response{Error: "Failed to connect to database"})
@@ -202,15 +221,8 @@ func uploadFileHandler(c *gin.Context) {
 	}
 	defer db.Close()
 
-	// Find user by email
-	var user Users
-	if err := db.DB.Where("email = ?", email).First(&user).Error; err != nil {
-		log.Printf("Failed to find user by email: %v", err)
-		c.JSON(http.StatusInternalServerError, Response{Error: "Failed to find user by email"})
-		return
-	}
-
 	// Update user's best score if the new score is higher
+	// fmt.Println(type(user.BestScore)
 	if score > user.BestScore {
 		if err := db.DB.Model(&user).Update("best_score", score).Error; err != nil {
 			log.Printf("Failed to update user's best score: %v", err)
